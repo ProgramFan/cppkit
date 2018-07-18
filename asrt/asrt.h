@@ -36,7 +36,7 @@
 //
 // ASRT is higly customizable by providing a hierarchy of configuration
 // macros.
-// 
+//
 // 1. set `ASRT_ENABLE` to `0` to disable all macros. Default to `1`.
 // 2. set `ASRT_ENABLE_<ASSERT|REQUIRE|ENSURE|CHECK>_MACROS` to `0` to disable
 // corresponding macros. By default, the `ASSERT` macros is controled by
@@ -47,8 +47,7 @@
 //
 // Users can customize the error handler by defining function with the
 // following signature and register to the system with
-// `asrt::ErrorHandling::pushHandler(asrt::ErrorHandling::CHAN_ASSERT,
-// handler)`.
+// `asrt::ErrorHandling::pushHandler(asrt::CHAN_ASSERT, handler)`.
 //
 // ```cpp
 // void ErrorHandler(const std::string &file, int line,
@@ -58,6 +57,11 @@
 
 #ifndef ASRT_H
 #define ASRT_H
+
+#define ASRT_VERSION_MAJOR 1
+#define ASRT_VERSION_MINOR 0
+#define ASRT_VERSION_PATCH 0
+#define ASRT_VERSION_STRING "1.0.0"
 
 // ==========================================================================
 // Customization macros and their default values
@@ -110,55 +114,53 @@
 #endif
 
 // ==========================================================================
+// Customization interface implementation
+// ==========================================================================
+
+#include <sstream>  // required by make_eval_expr
+#include <string>   // required by std::string
+
+namespace asrt {
+enum { CHAN_ASSERT = 0, CHAN_CHECK, CHAN_REQUIRE, CHAN_ENSURE, CHAN_COUNT_ };
+class ErrorHandling {
+public:
+  typedef void (*ErrorHandler)(const std::string &file, int line,
+                               const std::string &raw_expr,
+                               const std::string &eval_expr);
+#if ASRT_ENABLE == 1 && ASRT_ENABLE_CUSTOM_ERROR_HANDLER == 1
+  static void pushHandler(int channel, ErrorHandler handler);
+  static ErrorHandler popHandler(int channel);
+  static void resetHandler(int channel, ErrorHandler handler = NULL);
+  // Internal function used by binary_assert
+  static void handleError_(int channel, const std::string &file, int line,
+                           const std::string &raw_expr,
+                           const std::string &eval_expr);
+#else
+  static void pushHandler(int channel, ErrorHandler handler) {}
+  static ErrorHandler popHandler(int channel) { return NULL; }
+  static void resetHandler(int channel, ErrorHandler handler = NULL) {}
+#if ASRT_ENABLE == 1
+  // Internal function used by binary_assert
+  static void handleError_(int channel, const std::string &file, int line,
+                           const std::string &raw_expr,
+                           const std::string &eval_expr) {
+    static std::string channel_names[CHAN_COUNT_] = {"assert", "check",
+                                                     "require", "ensure"};
+    std::ostringstream oss;
+    oss << file << ":" << line << ": " << channel_names[channel] << "("
+        << raw_expr << ") failed, values (" << eval_expr << ")";
+    throw std::logic_error(oss.str());
+  }
+#endif
+#endif
+};
+}  // namespace asrt
+
+// ==========================================================================
 // Macro implementation
 // ==========================================================================
 
 #if ASRT_ENABLE == 1
-
-#include <sstream>
-#include <string>
-#include <vector>
-
-#if ASRT_ENABLE_CUSTOM_ERROR_HANDLER == 1
-// User configuration of error handlers for different channels
-namespace asrt {
-class ErrorHandling {
-public:
-  enum { CHAN_ASSERT = 0, CHAN_CHECK, CHAN_REQUIRE, CHAN_ENSURE, CHAN_COUNT_ };
-  typedef void (*ErrorHandler)(const std::string &file, int line,
-                               const std::string &raw_expr,
-                               const std::string &eval_expr);
-  static void pushHandler(int channel, ErrorHandler handler);
-  static ErrorHandler popHandler(int channel);
-  static void resetHandler(int channel, ErrorHandler handler = NULL);
-  static void handleError(int channel, const std::string &file, int line,
-                          const std::string &raw_expr,
-                          const std::string &eval_expr);
-
-private:
-  static std::vector<ErrorHandler> handlers_[CHAN_COUNT_];
-};
-}  // namespace asrt
-#else
-#include <cstdio>
-namespace asrt {
-class ErrorHandling {
-public:
-  enum { CHAN_ASSERT = 0, CHAN_CHECK, CHAN_REQUIRE, CHAN_ENSURE, CHAN_COUNT_ };
-  static void handleError(int channel, const std::string &file, int line,
-                          const std::string &raw_expr,
-                          const std::string &eval_expr) {
-    static std::string channel_names[CHAN_COUNT_] = {"assert", "check",
-                                                     "require", "ensure"};
-    char msg[1024] = {'\0'};
-    snprintf(msg, 1023, "%s:%d: %s (%s) failed, values (%s))", file.c_str(),
-             line, channel_names[channel].c_str(), raw_expr.c_str(),
-             eval_expr.c_str());
-    throw std::logic_error(msg);
-  }
-};
-}  // namespace asrt
-#endif
 
 // Implementation details
 namespace asrt {
@@ -266,8 +268,8 @@ template <int OP, typename L, typename R>
 inline void binary_assert(int channel, const char *file, int line,
                           const std::string &expr, const Result<L, R> &result) {
   if (RelationalComparision<OP>::valid(result.x, result.y)) return;
-  asrt::ErrorHandling::handleError(channel, file, line, expr,
-                                   make_eval_str<OP>(result.x, result.y));
+  asrt::ErrorHandling::handleError_(channel, file, line, expr,
+                                    make_eval_str<OP>(result.x, result.y));
 }
 
 }  // namespace detail
@@ -303,9 +305,8 @@ inline void binary_assert(int channel, const char *file, int line,
 #endif
 
 #define ASRT_DO_ASSERT2(CH, OP, x, y) \
-  ASRT_CHAN_ASSERT_##OP(asrt::ErrorHandling::CHAN_##CH, x, y)
-#define ASRT_DO_ASSERT1(CH, OP, x) \
-  ASRT_CHAN_ASSERT_##OP(asrt::ErrorHandling::CHAN_##CH, x)
+  ASRT_CHAN_ASSERT_##OP(asrt::CHAN_##CH, x, y)
+#define ASRT_DO_ASSERT1(CH, OP, x) ASRT_CHAN_ASSERT_##OP(asrt::CHAN_##CH, x)
 
 // The assertion macros
 #if ASRT_ENABLE_ASSERT_MACROS == 1

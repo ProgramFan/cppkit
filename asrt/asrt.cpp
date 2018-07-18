@@ -1,5 +1,7 @@
 #include "asrt.h"
 
+#if ASRT_ENABLE == 1 && ASRT_ENABLE_CUSTOM_ERROR_HANDLER == 1
+
 #include <cassert>
 #include <cstdio>
 #include <stdexcept>
@@ -10,8 +12,8 @@ void handle_channel_error(const std::string &channel_name,
                           const std::string &file, int line,
                           const std::string &raw_expr,
                           const std::string &eval_expr) {
-  char msg[1024] = { '\0' };
-  snprintf(msg, 1023, "%s:%d: %s (%s) failed, values (%s)", file.c_str(), line,
+  char msg[1024] = {'\0'};
+  snprintf(msg, 1023, "%s:%d: %s(%s) failed, values (%s)", file.c_str(), line,
            channel_name.c_str(), raw_expr.c_str(), eval_expr.c_str());
   throw std::logic_error(msg);
 }
@@ -37,17 +39,14 @@ void handle_check_error(const std::string &file, int line,
   handle_channel_error("check", file, line, raw_expr, eval_expr);
 }
 
+std::vector<asrt::ErrorHandling::ErrorHandler> handlers_[asrt::CHAN_COUNT_] = {
+    std::vector<asrt::ErrorHandling::ErrorHandler>(1, handle_assert_error),
+    std::vector<asrt::ErrorHandling::ErrorHandler>(1, handle_check_error),
+    std::vector<asrt::ErrorHandling::ErrorHandler>(1, handle_require_error),
+    std::vector<asrt::ErrorHandling::ErrorHandler>(1, handle_ensure_error)};
 }  // namespace
 
 namespace asrt {
-
-std::vector<ErrorHandling::ErrorHandler>
-    ErrorHandling::handlers_[ErrorHandling::CHAN_COUNT_] = {
-      std::vector<ErrorHandling::ErrorHandler>(1, handle_assert_error),
-      std::vector<ErrorHandling::ErrorHandler>(1, handle_check_error),
-      std::vector<ErrorHandling::ErrorHandler>(1, handle_require_error),
-      std::vector<ErrorHandling::ErrorHandler>(1, handle_ensure_error)
-    };
 
 void ErrorHandling::pushHandler(int channel,
                                 ErrorHandling::ErrorHandler handler) {
@@ -68,9 +67,8 @@ ErrorHandling::ErrorHandler ErrorHandling::popHandler(int channel) {
 void ErrorHandling::resetHandler(int channel,
                                  ErrorHandling::ErrorHandler handler) {
   static const ErrorHandler default_handlers[CHAN_COUNT_] = {
-    handle_assert_error, handle_check_error, handle_require_error,
-    handle_ensure_error
-  };
+      handle_assert_error, handle_check_error, handle_require_error,
+      handle_ensure_error};
   assert(channel >= 0);
   assert(channel < CHAN_COUNT_);
   if (!handler) handler = default_handlers[channel];
@@ -78,12 +76,14 @@ void ErrorHandling::resetHandler(int channel,
   handlers_[channel].push_back(handler);
 }
 
-void ErrorHandling::handleError(int channel, const std::string &file, int line,
-                                const std::string &raw_expr,
-                                const std::string &eval_expr) {
+void ErrorHandling::handleError_(int channel, const std::string &file, int line,
+                                 const std::string &raw_expr,
+                                 const std::string &eval_expr) {
   assert(channel >= 0);
   assert(channel < CHAN_COUNT_);
   handlers_[channel].back()(file, line, raw_expr, eval_expr);
 }
 
 }  // namespace asrt
+
+#endif

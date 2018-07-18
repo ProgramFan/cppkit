@@ -24,14 +24,13 @@ int f2() {
 }
 
 void do_test() {
-  asrt::ErrorHandling::pushHandler(asrt::ErrorHandling::CHAN_ASSERT,
-                                   MyAssertHandler);
+  asrt::ErrorHandling::pushHandler(asrt::CHAN_ASSERT, MyAssertHandler);
   ASSERT_TRUE(f1());
   ASSERT_FALSE(f2());
   ASSERT_EQ(f1_count, 1);
   ASSERT_EQ(f2_count, 1);
   ASSERT_EQ(f1(), f2());
-  asrt::ErrorHandling::popHandler(asrt::ErrorHandling::CHAN_ASSERT);
+  asrt::ErrorHandling::popHandler(asrt::CHAN_ASSERT);
   int x = 1, y = 2;
   ASSERT_EQ(x, y);
   ASSERT_NE(x, y);
