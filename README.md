@@ -12,8 +12,10 @@ At the moment, it includes these components:
 
 ## Usage
 
-CppKit shall be compiled before usage. Use cmake to compile and install
-cppkit to `PREFIX`:
+CppKit can be used as a standalone library or a cmake subject. When used as a
+standalone library, cppkit shall be compiled before usage. Use cmake to
+compile and install cppkit to `PREFIX`, then add `$PREFIX/include` and
+`$PREFIX/lib` to include and library path, and link with `-lcppkit`:
 
 ```bash
 mkdir build && cd build
@@ -21,14 +23,16 @@ cmake -DCMAKE_INSTALL_PREFIX=$PREFIX ..
 make && make install
 ```
 
-When using CppKit in one project, add `$PREFIX/include` to include path,
-`$PREFIX/lib` to library path, and link with `-lcppkit`. 
-
-The components retain their normal usage, refer to their documents for
-detailed information.
+When used as a cmake subproject, just put the source tree into `cppkit`
+directory, add the `cppkit` directory to project, and use
+`target_link_libraries(foo cppkit)` to refer to cppkit. When installing, the
+cppkit artifacts will be installed.
 
 For advanced users, each components can be extracted and add to the project's
 source tree.
+
+The components retain their normal usage, refer to their documents for
+detailed information.
 
 ## Development
 
@@ -42,7 +46,8 @@ When adding a library, follow these steps:
    headers.
 
 The headers shall be installed into the original directory layout. The sources
-shall be built into an object library `foo`. The object library foo shall be
-appended into the `cppkit_OBJECTS` list as `$<TARGET_OBJECTS:foo>`, and the
-variable shall be set to the parent scope. See the `asrt` library for an
-detailed example.
+shall be built into an object library `fooObjs`. The object library foo shall
+be appended into the `cppkit_OBJECTS` list as `$<TARGET_OBJECTS:fooObjs>`, and
+the variable shall be set to the parent scope. The interfaces shall be added
+to the `foo` interface library and set the build and install time path
+accordingly. See the `asrt` library for an detailed example.
