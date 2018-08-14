@@ -18,4 +18,6 @@ set(fmt_SOURCES ${fmt_HEADERS}
 
 add_library(fmt OBJECT ${fmt_SOURCES})
 target_include_directories(fmt PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+list(APPEND cppkit_OBJECTS $<TARGET_OBJECTS:fmt>)
+
 install(FILES ${fmt_HEADERS} DESTINATION include/fmt)
