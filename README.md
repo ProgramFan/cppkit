@@ -23,4 +23,6 @@ When adding a library, follow these steps:
 
 The headers shall be installed into the original directory layout. The sources
 shall be built into an object library `foo`. The object library foo shall be
-appended into the `cppkit_OBJECTS` list as `$<TARGET_OBJECTS:foo>`.
+appended into the `cppkit_OBJECTS` list as `$<TARGET_OBJECTS:foo>`, and the
+variable shall be set to the parent scope. See the `asrt` library for an
+detailed example.
