@@ -10,6 +10,26 @@ At the moment, it includes these components:
 3. fmt for easy string formatting
 4. pegtl for PEG parser generator
 
+## Usage
+
+CppKit shall be compiled before usage. Use cmake to compile and install
+cppkit to `PREFIX`:
+
+```bash
+mkdir build && cd build
+cmake -DCMAKE_INSTALL_PREFIX=$PREFIX ..
+make && make install
+```
+
+When using CppKit in one project, add `$PREFIX/include` to include path,
+`$PREFIX/lib` to library path, and link with `-lcppkit`. 
+
+The components retain their normal usage, refer to their documents for
+detailed information.
+
+For advanced users, each components can be extracted and add to the project's
+source tree.
+
 ## Development
 
 When adding a library, follow these steps:
