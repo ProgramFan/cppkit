@@ -95,14 +95,17 @@
 // Determine whether to enable short macros. By default, they are enabled when
 // there exists no name collisions.
 #ifndef ASRT_ENABLE_SHORT_MACROS
-#if defined(ASSERT_EQ) || defined(ASSERT_NE) || defined(ASSERT_GT) ||    \
-    defined(ASSERT_GE) || defined(ASSERT_LT) || defined(ASSERT_LE) ||    \
-    defined(CHECK_EQ) || defined(CHECK_NE) || defined(CHECK_GT) ||       \
-    defined(CHECK_GE) || defined(CHECK_LT) || defined(CHECK_LE) ||       \
-    defined(REQUIRE_EQ) || defined(REQUIRE_NE) || defined(REQUIRE_GT) || \
-    defined(REQUIRE_GE) || defined(REQUIRE_LT) || defined(REQUIRE_LE) || \
-    defined(ENSURE_EQ) || defined(ENSURE_NE) || defined(ENSURE_GT) ||    \
-    defined(ENSURE_GE) || defined(ENSURE_LT) || defined(ENSURE_LE)
+#if defined(ASSERT_EQ) || defined(ASSERT_NE) || defined(ASSERT_GT) ||          \
+    defined(ASSERT_GE) || defined(ASSERT_LT) || defined(ASSERT_LE) ||          \
+    defined(ASSERT_TRUE) || defined(ASSERT_FALSE) || defined(CHECK_EQ) ||      \
+    defined(CHECK_NE) || defined(CHECK_GT) || defined(CHECK_GE) ||             \
+    defined(CHECK_LT) || defined(CHECK_LE) || defined(CHECK_TRUE) ||           \
+    defined(CHECK_FALSE) || defined(REQUIRE_EQ) || defined(REQUIRE_NE) ||      \
+    defined(REQUIRE_GT) || defined(REQUIRE_GE) || defined(REQUIRE_LT) ||       \
+    defined(REQUIRE_LE) || defined(REQUIRE_TRUE) || defined(REQUIRE_FALSE) ||  \
+    defined(ENSURE_EQ) || defined(ENSURE_NE) || defined(ENSURE_GT) ||          \
+    defined(ENSURE_GE) || defined(ENSURE_LT) || defined(ENSURE_LE) ||          \
+    defined(ENSURE_TRUE) || defined(ENSURE_TRUE)
 #define ASRT_ENABLE_SHORT_MACROS 0
 #else
 #define ASRT_ENABLE_SHORT_MACROS 1
@@ -144,8 +147,8 @@ public:
   static void handleError_(int channel, const std::string &file, int line,
                            const std::string &raw_expr,
                            const std::string &eval_expr) {
-    static std::string channel_names[CHAN_COUNT_] = {"assert", "check",
-                                                     "require", "ensure"};
+    static std::string channel_names[CHAN_COUNT_] = { "assert", "check",
+                                                      "require", "ensure" };
     std::ostringstream oss;
     oss << file << ":" << line << ": " << channel_names[channel] << "("
         << raw_expr << ") failed, values (" << eval_expr << ")";
@@ -279,10 +282,10 @@ inline void binary_assert(int channel, const char *file, int line,
 // Macro definitions
 // ==========================================================================
 
-#define ASRT_CHAN_ASSERT_IMPL(CHAN, OP, x, y)                           \
-  asrt::detail::binary_assert<asrt::detail::ASRT_CMP_##OP>(             \
-      CHAN, __FILE__, __LINE__,                                         \
-      asrt::detail::make_expr_str<asrt::detail::ASRT_CMP_##OP>(#x, #y), \
+#define ASRT_CHAN_ASSERT_IMPL(CHAN, OP, x, y)                                  \
+  asrt::detail::binary_assert<asrt::detail::ASRT_CMP_##OP>(                    \
+      CHAN, __FILE__, __LINE__,                                                \
+      asrt::detail::make_expr_str<asrt::detail::ASRT_CMP_##OP>(#x, #y),        \
       asrt::detail::make_result((x), (y)))
 #define ASRT_CHAN_ASSERT_EQ(CHAN, x, y) ASRT_CHAN_ASSERT_IMPL(CHAN, EQ, x, y)
 #define ASRT_CHAN_ASSERT_NE(CHAN, x, y) ASRT_CHAN_ASSERT_IMPL(CHAN, NE, x, y)
@@ -291,7 +294,7 @@ inline void binary_assert(int channel, const char *file, int line,
 #define ASRT_CHAN_ASSERT_LT(CHAN, x, y) ASRT_CHAN_ASSERT_IMPL(CHAN, LT, x, y)
 #define ASRT_CHAN_ASSERT_LE(CHAN, x, y) ASRT_CHAN_ASSERT_IMPL(CHAN, LE, x, y)
 #define ASRT_CHAN_ASSERT_TRUE(CHAN, x) ASRT_CHAN_ASSERT_IMPL(CHAN, EQ, x, true)
-#define ASRT_CHAN_ASSERT_FALSE(CHAN, x) \
+#define ASRT_CHAN_ASSERT_FALSE(CHAN, x)                                        \
   ASRT_CHAN_ASSERT_IMPL(CHAN, EQ, x, false)
 #else
 #define ASRT_CHAN_ASSERT_EQ(CHAN, x, y)
@@ -304,7 +307,7 @@ inline void binary_assert(int channel, const char *file, int line,
 #define ASRT_CHAN_ASSERT_FALSE(CHAN, x)
 #endif
 
-#define ASRT_DO_ASSERT2(CH, OP, x, y) \
+#define ASRT_DO_ASSERT2(CH, OP, x, y)                                          \
   ASRT_CHAN_ASSERT_##OP(asrt::CHAN_##CH, x, y)
 #define ASRT_DO_ASSERT1(CH, OP, x) ASRT_CHAN_ASSERT_##OP(asrt::CHAN_##CH, x)
 
