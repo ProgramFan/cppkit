@@ -2,22 +2,22 @@
 # CMakeLists.txt
 #
 
-cmake_minimum_required(VERSION 3.0)
-
-project(cppkit CXX C)
+cmake_minimum_required(VERSION 3.5)
 
 set(cppkit_VERSION "1.1.0")
+project(cppkit VERSION ${cppkit_VERSION} LANGUAGES CXX C)
 
-# cppkit_OBJECTS are used to aggragates object files of cppkit library while
-# cppkit_COMPONENTS are used to aggregates include paths.
-set(cppkit_OBJECTS "")
-set(cppkit_COMPONENTS asrt doctest fmt pegtl)
-
+# set(cppkit_COMPONENTS asrt doctest fmt pegtl)
+set(cppkit_COMPONENTS asrt)
 foreach (c ${cppkit_COMPONENTS})
     add_subdirectory(${c})
 endforeach()
+add_library(cppkit INTERFACE)
+target_link_libraries(cppkit INTERFACE ${cppkit_COMPONENTS})
 
-add_library(cppkit ${cppkit_OBJECTS})
-target_link_libraries(cppkit ${cppkit_COMPONENTS})
-
-install(TARGETS cppkit DESTINATION lib)
+install(TARGETS cppkit EXPORT cppkitTargets
+    LIBRARY DESTINATION lib
+    ARCHIVE DESTINATION lib
+    INCLUDES DESTINATION include)
+install(EXPORT cppkitTargets
+    FILE cppkitTargets.cmake DESTINATION lib/cmake/cppkit)
