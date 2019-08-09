@@ -8,7 +8,7 @@ set(cppkit_VERSION "1.1.0")
 project(cppkit VERSION ${cppkit_VERSION} LANGUAGES CXX C)
 
 # set(cppkit_COMPONENTS asrt doctest fmt pegtl)
-set(cppkit_COMPONENTS asrt)
+set(cppkit_COMPONENTS assert)
 foreach (c ${cppkit_COMPONENTS})
     add_subdirectory(${c})
 endforeach()

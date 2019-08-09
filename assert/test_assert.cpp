@@ -1,6 +1,6 @@
 #include <iostream>
 
-#include "asrt.h"
+#include "assert.hpp"
 
 namespace {
 void MyAssertHandler(const std::string &file, int line,
@@ -24,20 +24,20 @@ int f2() {
 }
 
 void do_test() {
-  asrt::ErrorHandling::pushHandler(asrt::CHAN_ASSERT, MyAssertHandler);
-  ASSERT_TRUE(f1());
-  ASSERT_FALSE(f2());
-  ASSERT_EQ(f1_count, 1);
-  ASSERT_EQ(f2_count, 1);
-  ASSERT_EQ(f1(), f2());
-  asrt::ErrorHandling::popHandler(asrt::CHAN_ASSERT);
+  cppkit::ErrorHandling::pushHandler(cppkit::CHAN_ASSERT, MyAssertHandler);
+  CPPKIT_ASSERT_TRUE(f1());
+  CPPKIT_ASSERT_FALSE(f2());
+  CPPKIT_ASSERT_EQ(f1_count, 1);
+  CPPKIT_ASSERT_EQ(f2_count, 1);
+  CPPKIT_ASSERT_EQ(f1(), f2());
+  cppkit::ErrorHandling::popHandler(cppkit::CHAN_ASSERT);
   int x = 1, y = 2;
-  ASSERT_EQ(x, y);
-  ASSERT_NE(x, y);
-  ASSERT_GT(x, y);
-  ASSERT_GE(x, y);
-  ASSERT_LT(x, y);
-  ASSERT_LE(x, y);
+  CPPKIT_ASSERT_EQ(x, y);
+  CPPKIT_ASSERT_NE(x, y);
+  CPPKIT_ASSERT_GT(x, y);
+  CPPKIT_ASSERT_GE(x, y);
+  CPPKIT_ASSERT_LT(x, y);
+  CPPKIT_ASSERT_LE(x, y);
 }
 
 int main(int argc, char *argv[]) {

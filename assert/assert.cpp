@@ -1,6 +1,6 @@
-#include "asrt.h"
+#include "assert.hpp"
 
-#if ASRT_ENABLE == 1 && ASRT_ENABLE_CUSTOM_ERROR_HANDLER == 1
+#if CPPKIT_ASSERT_ENABLE == 1 && CPPKIT_ASSERT_ENABLE_CUSTOM_ERROR_HANDLER == 1
 
 #include <cassert>
 #include <cstdio>
@@ -39,14 +39,18 @@ void handle_check_error(const std::string &file, int line,
   handle_channel_error("check", file, line, raw_expr, eval_expr);
 }
 
-std::vector<asrt::ErrorHandling::ErrorHandler> handlers_[asrt::CHAN_COUNT_] = {
-    std::vector<asrt::ErrorHandling::ErrorHandler>(1, handle_assert_error),
-    std::vector<asrt::ErrorHandling::ErrorHandler>(1, handle_check_error),
-    std::vector<asrt::ErrorHandling::ErrorHandler>(1, handle_require_error),
-    std::vector<asrt::ErrorHandling::ErrorHandler>(1, handle_ensure_error)};
+std::vector<cppkit::ErrorHandling::ErrorHandler>
+    handlers_[cppkit::CHAN_COUNT_] = {
+        std::vector<cppkit::ErrorHandling::ErrorHandler>(1,
+                                                         handle_assert_error),
+        std::vector<cppkit::ErrorHandling::ErrorHandler>(1, handle_check_error),
+        std::vector<cppkit::ErrorHandling::ErrorHandler>(1,
+                                                         handle_require_error),
+        std::vector<cppkit::ErrorHandling::ErrorHandler>(1,
+                                                         handle_ensure_error)};
 }  // namespace
 
-namespace asrt {
+namespace cppkit {
 
 void ErrorHandling::pushHandler(int channel,
                                 ErrorHandling::ErrorHandler handler) {
@@ -84,6 +88,6 @@ void ErrorHandling::handleError_(int channel, const std::string &file, int line,
   handlers_[channel].back()(file, line, raw_expr, eval_expr);
 }
 
-}  // namespace asrt
+}  // namespace cppkit
 
 #endif
