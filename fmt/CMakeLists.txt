@@ -10,7 +10,10 @@ set(fmt_HEADERS
     include/fmt/posix.h
     include/fmt/printf.h
     include/fmt/ranges.h
-    include/fmt/time.h)
+    include/fmt/time.h
+    include/fmt/chrono.h
+    include/fmt/color.h
+    include/fmt/locale.h)
 
 set(fmt_SOURCES ${fmt_HEADERS}
     src/posix.cc
