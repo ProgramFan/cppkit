@@ -2,39 +2,39 @@
 // @file assert.hpp
 // @author Yang Zhang <yang_zhang@iapcm.ac.cn>, 2018
 //
-// # ASRT: An assertion implementation for contract programming.
+// # CPPKIT_ASSERT: An assertion implementation for contract programming.
 //
-// ASRT implements assertion macros for contract programming. This library
-// provides `require`, `ensure` and `assert` for precondition, postcondition
-// and invariance check. All these checks can be disabled at compile time to
-// support production build. This library also provides a `check` macro which
-// is not disabled together with the other macros (but can also be disabled at
-// compile time).
+// CPPKIT_ASSERT implements assertion macros for contract programming. This
+// library provides `require`, `ensure` and `assert` for precondition,
+// postcondition and invariance check. All these checks can be disabled at
+// compile time to support production build. This library also provides a
+// `check` macro which is not disabled together with the other macros (but can
+// also be disabled at compile time).
 //
 // ## Features
 //
-// The difference of ASRT to standard assert is that ASRT evaluates the
-// operands of the assert expression and output their values when the
-// assertion fails. This is extremely useful for error tracing.
+// The difference of CPPKIT_ASSERT to standard assert is that CPPKIT_ASSERT
+// evaluates the operands of the assert expression and output their values when
+// the assertion fails. This is extremely useful for error tracing.
 //
-// By default, ASRT throws an std::logic_error when assertion fails. Users can
-// register their own error handler for these different types of assert macros
-// to customize the failure behavior.
+// By default, CPPKIT_ASSERT throws an std::logic_error when assertion fails.
+// Users can register their own error handler for these different types of
+// assert macros to customize the failure behavior.
 //
-// ASRT is very lightweight. It consists of only two files: `asrt.h` and
-// `asrt.cpp`. If the default failure behavior is enough, users can set
+// CPPKIT_ASSERT is very lightweight. It consists of only two files: `asrt.h`
+// and `asrt.cpp`. If the default failure behavior is enough, users can set
 // `CPPKIT_ASSERT_ENABLE_CUSTOM_ERROR_HANDLER` to `0` and uses only `asrt.h`.
 //
 // ## Usage
 //
-// Just include `asrt.h` and call
-// `<ASSERT|REQUIRE|ENSURE|CHECK>_<EQ|NE|GT|GE|LT|LE|TRUE|FALSE>` in the code
-// to declare assertions. Add `asrt.cpp` to the build system if customization
-// of error handlers are used.
+// Just include `assert.hpp` and call
+// `CPPKIT_<ASSERT|REQUIRE|ENSURE|CHECK>_<EQ|NE|GT|GE|LT|LE|TRUE|FALSE>` in the
+// code to declare assertions. Add `asrt.cpp` to the build system if
+// customization of error handlers are used.
 //
 // ## Customizations
 //
-// ASRT is higly customizable by providing a hierarchy of configuration
+// CPPKIT_ASSERT is higly customizable by providing a hierarchy of configuration
 // macros.
 //
 // 1. set `CPPKIT_ASSERT_ENABLE` to `0` to disable all macros. Default to `1`.
@@ -59,7 +59,7 @@
 #define CPPKIT_ASSERT_HPP
 
 #define CPPKIT_ASSERT_VERSION_MAJOR 1
-#define CPPKIT_ASSERT_VERSION_MINOR 0
+#define CPPKIT_ASSERT_VERSION_MINOR 1
 #define CPPKIT_ASSERT_VERSION_PATCH 0
 #define CPPKIT_ASSERT_VERSION_STRING "1.0.0"
 
@@ -104,8 +104,18 @@
 // Customization interface implementation
 // ==========================================================================
 
-#include <sstream>  // required by make_eval_expr
-#include <string>   // required by std::string
+#if CPPKIT_ASSERT_ENABLE == 1
+#include <complex>  // to support formatting complex numbers
+#include <cstring>  // required by snprintf
+#include <map>      // to support formatting map
+#include <memory>
+#include <sstream>        // required by make_eval_expr
+#include <string>         // required by std::string
+#include <type_traits>    // for all type traits
+#include <unordered_map>  // to support formatting unordered_map
+#include <utility>        // for std::enable_if
+#include <vector>         // to support formatting vector
+#endif
 
 namespace cppkit {
 enum { CHAN_ASSERT = 0, CHAN_CHECK, CHAN_REQUIRE, CHAN_ENSURE, CHAN_COUNT_ };
@@ -244,11 +254,83 @@ template <int OP>
 inline std::string make_expr_str(const char *x, const char *y) {
   return std::string(x) + " " + RelationalComparision<OP>::str() + " " + y;
 }
+
+// A robust toString implementation that never fails.
+namespace to_string {
+template <typename T, typename = void>
+struct HasFormattedOutput : std::false_type {};
+template <typename T>
+struct HasFormattedOutput<T, decltype((void)(std::declval<std::ostream>()
+                                             << std::declval<T>()))>
+    : std::true_type {};
+
+template <typename T,
+          typename std::enable_if<HasFormattedOutput<T>::value, int>::type = 0>
+std::string toString(const T &v) {
+  std::ostringstream oss;
+  oss << v;
+  return oss.str();
+}
+template <typename T,
+          typename std::enable_if<!HasFormattedOutput<T>::value, int>::type = 0>
+std::string toString(const T &v) {
+  std::ostringstream oss;
+  oss << "Object@" << &v;
+  return oss.str();
+}
+std::string toString(std::nullptr_t v) { return std::string("nullptr"); }
+template <typename T>
+std::string toString(const std::vector<T> &v) {
+  std::string result("[");
+  if (!v.empty()) {
+    result += toString(v.front());
+    for (int i = 1; i < v.size(); i++) result += ", " + toString(v[i]);
+  }
+  result += "]";
+  return result;
+}
+template <typename K, typename V>
+std::string toString(const std::map<K, V> &v) {
+  std::string result("{");
+  if (!v.empty()) {
+    bool isFirst = true;
+    for (auto kv : v) {
+      if (isFirst) {
+        result += toString(kv.first) + ": " + toString(kv.second);
+        isFirst = false;
+      } else {
+        result += ", " + toString(kv.first) + ": " + toString(kv.second);
+      }
+    }
+  }
+  result += "}";
+  return result;
+}
+template <typename K, typename V>
+std::string toString(const std::unordered_map<K, V> &v) {
+  std::string result("{");
+  if (!v.empty()) {
+    bool isFirst = true;
+    for (auto kv : v) {
+      if (isFirst) {
+        result += toString(kv.first) + ": " + toString(kv.second);
+        isFirst = false;
+      } else {
+        result += ", " + toString(kv.first) + ": " + toString(kv.second);
+      }
+    }
+  }
+  result += "}";
+  return result;
+}
+std::string toString(const std::string &v) { return "\"" + v + "\""; }
+std::string toString(const char *v) { return "\"" + std::string(v) + "\""; }
+}  // namespace to_string
+
 template <int OP, typename L, typename R>
 inline std::string make_eval_str(const L &x, const R &y) {
-  std::ostringstream oss;
-  oss << x << " " << RelationalComparision<OP>::str() << " " << y;
-  return oss.str();
+  return to_string::toString(x) + " " + RelationalComparision<OP>::str() + " " +
+         to_string::toString(y);
 }
 
 template <int OP, typename L, typename R>
@@ -285,9 +367,9 @@ inline void binary_assert(int channel, const char *file, int line,
 #define CPPKIT_ASSERT_CHAN_ASSERT_LE(CHAN, x, y) \
   CPPKIT_ASSERT_CHAN_ASSERT_IMPL(CHAN, LE, x, y)
 #define CPPKIT_ASSERT_CHAN_ASSERT_TRUE(CHAN, x) \
-  CPPKIT_ASSERT_CHAN_ASSERT_IMPL(CHAN, EQ, x, true)
+  CPPKIT_ASSERT_CHAN_ASSERT_IMPL(CHAN, EQ, bool(x), true)
 #define CPPKIT_ASSERT_CHAN_ASSERT_FALSE(CHAN, x) \
-  CPPKIT_ASSERT_CHAN_ASSERT_IMPL(CHAN, EQ, x, false)
+  CPPKIT_ASSERT_CHAN_ASSERT_IMPL(CHAN, EQ, bool(x), false)
 #else
 #define CPPKIT_ASSERT_CHAN_ASSERT_EQ(CHAN, x, y)
 #define CPPKIT_ASSERT_CHAN_ASSERT_NE(CHAN, x, y)
