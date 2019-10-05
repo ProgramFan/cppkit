@@ -4,7 +4,7 @@
 
 cmake_minimum_required(VERSION 3.5)
 
-set(assert_VERSION 1.0.0)
+set(assert_VERSION 1.1.0)
 project(assert VERSION ${assert_VERSION} LANGUAGES CXX)
 
 add_library(assert assert.hpp assert.cpp)
