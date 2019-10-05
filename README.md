@@ -5,7 +5,7 @@
 CppKit is a collection of library components for efficient C++ programming.
 At the moment, it includes these components:
 
-1. ASRT for contract programming
+1. assert.hpp for contract programming
 2. doctest for TDD
 3. fmt for easy string formatting
 4. pegtl for PEG parser generator
