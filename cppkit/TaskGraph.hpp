@@ -6,10 +6,11 @@
 #include <cassert>
 #include <cstdint>
 #include <memory>
-#include <ostream>
 #include <queue>
 #include <sstream>
 #include <unordered_map>
+#include <unordered_set>
+#include <utility>
 #include <vector>
 
 /*
@@ -40,14 +41,14 @@ struct Task {
   // Set the tag of this task
   void setTag(int tag) { tag_ = tag; };
   // Query all downstream tasks
-  const std::vector<Task*>& downstreamTasks() { return downstreamTasks_; }
+  const std::unordered_set<Task*>& downstreamTasks() {
+    return downstreamTasks_;
+  }
   // Add a downstream task
   void addDownstreamTask(Task* t) {
     // Avoid add twice
-    if (downstreamTasks_.empty() ||
-        std::find(downstreamTasks_.begin(), downstreamTasks_.end(), t) !=
-            downstreamTasks_.end()) {
-      downstreamTasks_.push_back(t);
+    if (downstreamTasks_.find(t) == downstreamTasks_.end()) {
+      downstreamTasks_.insert(t);
       t->upstreamCount_++;
     }
   }
@@ -57,15 +58,18 @@ struct Task {
   // and never mix them together in building inter-task dependencies.
   void addUpstreamTask(Task* t) {
     // Avoid add twice
-    if (t->downstreamTasks_.empty() ||
-        std::find(t->downstreamTasks_.begin(), t->downstreamTasks_.end(),
-                  this) != t->downstreamTasks_.end()) {
-      t->downstreamTasks_.push_back(this);
+    if (t->downstreamTasks_.find(this) == t->downstreamTasks_.end()) {
+      t->downstreamTasks_.insert(this);
       upstreamCount_++;
     }
   }
+
   // Reset the task to ready-for-schedule state
   void reset() { pendingUpstreamCount_ = upstreamCount_; }
+
+  //
+  // Abstract interfaces for task definition
+  //
 
   // Progress the task, return whether the task is finished.
   virtual bool progress() = 0;
@@ -78,7 +82,7 @@ private:
   int tag_ = 0;
   int upstreamCount_ = 0;
   std::atomic<int> pendingUpstreamCount_;
-  std::vector<Task*> downstreamTasks_;
+  std::unordered_set<Task*> downstreamTasks_;
 };
 
 /*
@@ -92,17 +96,21 @@ private:
 struct TaskGraph {
   TaskGraph() = default;
 
+  // Return how many tags are in the task graph
   int tagCount() const { return tasksByTag_.size(); }
-  size_t taskCount() const {
-    size_t count = 0;
-    for (auto& kv : tasksByTag_) count += kv.second.size();
-    return count;
-  }
+  // Return how many tasks are in the task graph.
+  size_t taskCount() const { return taskCount_; }
 
   // Add a task into the task graph.
-  void addTask(Task* t) { tasksByTag_[t->tag()].push_back(t); }
+  void addTask(Task* t) {
+    tasksByTag_[t->tag()].push_back(t);
+    taskCount_++;
+  }
   // Clear all tasks
-  void clear() { tasksByTag_.clear(); }
+  void clear() {
+    tasksByTag_.clear();
+    taskCount_ = 0;
+  }
 
   // Loop over all tasks
   //
@@ -241,6 +249,13 @@ struct TaskGraph {
     return {true, ""};
   }
 
+  // Reset tasks for scheduling
+  void reset() {
+    foreach([](Task* t) { t->reset(); });
+  }
+
+  // Construct an graphviz representation of the graph. Can be feed into `dot`
+  // to visualize the graph.
   std::string toString() const {
     if (tasksByTag_.empty()) return "digraph {}";
     std::ostringstream os;
@@ -260,6 +275,7 @@ struct TaskGraph {
   }
 
 private:
+  size_t taskCount_ = 0;
   std::unordered_map<int, std::vector<Task*>> tasksByTag_;
 };
 
