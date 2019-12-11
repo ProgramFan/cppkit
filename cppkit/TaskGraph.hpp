@@ -1,12 +1,14 @@
 #ifndef CPPKIT_TASK_GRAPH_HPP
 #define CPPKIT_TASK_GRAPH_HPP
 
+#include <algorithm>
 #include <atomic>
 #include <cassert>
 #include <cstdint>
 #include <memory>
 #include <ostream>
 #include <queue>
+#include <sstream>
 #include <unordered_map>
 #include <vector>
 
@@ -27,6 +29,9 @@ struct Task {
   Task(int tag) : tag_(tag) {}
   // Destroy the task
   virtual ~Task() = default;
+  // Forbidden the task to copy
+  Task(const Task&) = delete;
+  Task& operator=(const Task&) = delete;
 
   // Query or set the task properties
 
@@ -37,22 +42,37 @@ struct Task {
   // Query all downstream tasks
   const std::vector<Task*>& downstreamTasks() { return downstreamTasks_; }
   // Add a downstream task
-  void addDownstreamTask(Task* t) { downstreamTasks_.push_back(t); }
+  void addDownstreamTask(Task* t) {
+    // Avoid add twice
+    if (downstreamTasks_.empty() ||
+        std::find(downstreamTasks_.begin(), downstreamTasks_.end(), t) !=
+            downstreamTasks_.end()) {
+      downstreamTasks_.push_back(t);
+      t->upstreamCount_++;
+    }
+  }
   // Query the upstream task count
   int upstreamCount() const { return upstreamCount_; }
-  // Set the upstream task count
-  void setUpstreamCount(int count) { upstreamCount_ = count; }
-  // Increase the upstream task count
-  void addUpstreamCount(int amount = 1) { upstreamCount_ += amount; }
-
+  // Add an upstream task. Please either addUpstreamTask or addDownstreamTask
+  // and never mix them together in building inter-task dependencies.
+  void addUpstreamTask(Task* t) {
+    // Avoid add twice
+    if (t->downstreamTasks_.empty() ||
+        std::find(t->downstreamTasks_.begin(), t->downstreamTasks_.end(),
+                  this) != t->downstreamTasks_.end()) {
+      t->downstreamTasks_.push_back(this);
+      upstreamCount_++;
+    }
+  }
   // Reset the task to ready-for-schedule state
   void reset() { pendingUpstreamCount_ = upstreamCount_; }
+
   // Progress the task, return whether the task is finished.
   virtual bool progress() = 0;
   // Check if the task is finished without any progressing.
-  virtual bool finished() = 0;
+  virtual bool finished() const = 0;
   // Return an unique identity for the task
-  virtual std::string id() = 0;
+  virtual std::string id() const = 0;
 
 private:
   int tag_ = 0;
@@ -71,6 +91,13 @@ private:
  */
 struct TaskGraph {
   TaskGraph() = default;
+
+  int tagCount() const { return tasksByTag_.size(); }
+  size_t taskCount() const {
+    size_t count = 0;
+    for (auto& kv : tasksByTag_) count += kv.second.size();
+    return count;
+  }
 
   // Add a task into the task graph.
   void addTask(Task* t) { tasksByTag_[t->tag()].push_back(t); }
@@ -125,54 +152,111 @@ struct TaskGraph {
   // The graph is valid if and only if the upstream count matches the real
   // upstream count and the graph is a DAG.
   //
-  bool validate(std::ostream& os) const {
+  std::pair<bool, std::string> validate(bool diagnostics = false) const {
     std::unordered_map<Task*, int> counts;
     foreach([&counts](Task* t) {
+      if (counts.find(t) == counts.end()) counts[t] = 0;
       for (auto d : t->downstreamTasks()) {
         if (counts.find(d) == counts.end()) counts[d] = 0;
         counts[d]++;
       }
     });
     bool isValid = true;
-    foreach([&counts, &isValid, &os](Task* t) {
+    std::ostringstream os;
+    foreach([&counts, &isValid, &os, &diagnostics](Task* t) {
       if (t->upstreamCount() != counts.at(t)) {
         isValid = false;
-        os << "Invalid upstream count for '" << t->id() << "@" << t
-           << "': claimed " << t->upstreamCount() << ", real " << counts.at(t)
-           << std::endl;
+        if (diagnostics) {
+          os << "Invalid upstream count for '" << t->id() << "@" << t
+             << "': claimed " << t->upstreamCount() << ", real "
+             << counts.at(t);
+        }
       }
     });
-    if (!isValid) return false;
+    if (!isValid) return {false, os.str()};
     //
     // Check if the graph is a DAG.
     //
     // initialize roots (tasks with no upstreams)
-    std::vector<Task*> tasksToVisit;
-    foreachByUpstreamCount(
-        0, [&tasksToVisit](Task* t) { tasksToVisit.push_back(t); });
-    if (tasksToVisit.empty()) {
-      os << "The task graph is cyclic: every task has at least one upstream."
-         << std::endl;
-      return false;
-    }
-    // initialize counts to 0 for duplicate visit check
-    for (auto& kv : counts) kv.second = 0;
-    for (size_t i = 0; i < tasksByTag_.size(); i++) {
-      assert(!tasksToVisit.empty());
-      auto t = tasksToVisit.pop_back();
-      tasksToVisit.pop();
-      if (++counts[t] > 1) {
-        os << "The task graph is cyclic: task '" << t->id() << "@" << t
-           << "' is in a cycle." << std::endl;
-        return false;
+    std::queue<Task*> ready;
+    foreachByUpstreamCount(0, [&ready](Task* t) { ready.push(t); });
+    if (ready.empty()) {
+      if (diagnostics) {
+        os << "The task graph is cyclic: there exist no source tasks.";
       }
+      return {false, os.str()};
+    }
+    // Count tasks without dependent tasks. There shall be at least one such
+    // task in a DAG.
+    int sinkCount = 0;
+    foreachIf([&sinkCount](Task* t) { sinkCount++; },
+              [](Task* t) -> bool { return t->downstreamTasks().empty(); });
+    if (sinkCount == 0) {
+      if (diagnostics) {
+        os << "The task graph is cyclic: there exist no sink tasks.";
+      }
+      return {false, os.str()};
+    }
+    // Pseudo scheduling with count limit to check for cycle. A digraph is
+    // acyclic if and only if it can be scheduled with digraph.size() turns.
+    for (auto& kv : counts) kv.second = kv.first->upstreamCount();
+    size_t tasksTodo = this->taskCount();
+    for (size_t i = 0; i < taskCount(); i++) {
+      if (ready.empty()) {
+        if (diagnostics) {
+          os << "The task graph is cyclic: at least one cycle exists in [";
+          bool first = true;
+          for (auto& kv : counts) {
+            if (kv.second > 0)
+              os << (first ? (first = false, "'") : ", '") << kv.first->id()
+                 << "@" << kv.first << "'";
+          }
+          os << "]";
+        }
+        return {false, os.str()};
+      }
+      auto t = ready.front();
+      ready.pop();
+      tasksTodo--;
       for (auto d : t->downstreamTasks()) {
-        if (std::find(tasksToVisit.begin(), tasksToVisit.end(), d) ==
-            tasksToVisit.end())
-          tasksToVisit.push(d);
+        int c = --counts[d];
+        if (c < 0) {
+          if (diagnostics) {
+            os << "The task graph is cyclic: task '" << d->id() << "@" << d
+               << "' is in a cycle.";
+          }
+          return {false, os.str()};
+        } else if (c == 0) {
+          ready.push(d);
+        }
       }
     }
-    return isValid;
+    if (tasksTodo > 0) {
+      if (diagnostics) {
+        os << "The task graph is cyclic: still tasks after taskCount "
+              "schedules.";
+      }
+      return {false, os.str()};
+    }
+    return {true, ""};
+  }
+
+  std::string toString() const {
+    if (tasksByTag_.empty()) return "digraph {}";
+    std::ostringstream os;
+    os << "digraph {" << std::endl;
+    foreach([&os](Task* t) {
+      if (t->upstreamCount() == 0 && t->downstreamTasks().empty()) {
+        os << "  \"" << t->id() << "\";" << std::endl;
+      } else {
+        for (auto d : t->downstreamTasks()) {
+          os << "  \"" << t->id() << "\" -> \"" << d->id() << "\";"
+             << std::endl;
+        }
+      }
+    });
+    os << "}";
+    return os.str();
   }
 
 private:
