@@ -13,6 +13,17 @@
 #include <utility>
 #include <vector>
 
+//
+//
+// Some thoughts on design
+//
+//
+// 1. When we create the task, we may what the task to store tag, priority for
+//    later scheduling algorithms.
+// 2. We may also want to the downstream tasks to be stored in different
+//    containers for accessing performance. Vector would be the best for
+//    accessing but slow for creating the task graph correctly.
+
 /*
  * A general task graph implementation
  *
@@ -34,8 +45,8 @@ struct tag_traits {
 };
 template <>
 struct tag_traits<taskgraph::WithTag> {
-  static const bool tag = true;
-  static const bool priority = false;
+  static constexpr bool tag = true;
+  static constexpr bool priority = false;
 };
 template <>
 struct tag_traits<taskgraph::WithPriority> {
@@ -77,6 +88,61 @@ struct MetaDataSelector<taskgraph::WithTagAndPriority> {
 };
 }  // namespace detail
 
+struct BaseTask {
+  // Create a regular task
+  BaseTask() = default;
+  // Destroy the task
+  virtual ~BaseTask() = default;
+  // Forbidden the task to copy
+  BaseTask(const BaseTask&) = delete;
+  BaseTask& operator=(const BaseTask&) = delete;
+
+  // Query or set the task properties
+
+  // Query all downstream tasks
+  const std::unordered_set<BaseTask*>& downstreamTasks() {
+    return downstreamTasks_;
+  }
+  // Add a downstream task
+  void addDownstreamTask(BaseTask* t) {
+    // Avoid add twice
+    if (downstreamTasks_.find(t) == downstreamTasks_.end()) {
+      downstreamTasks_.insert(t);
+      t->upstreamCount_++;
+    }
+  }
+  // Query the upstream task count
+  int upstreamCount() const { return upstreamCount_; }
+  // Add an upstream task. Please either addUpstreamTask or addDownstreamTask
+  // and never mix them together in building inter-task dependencies.
+  void addUpstreamTask(BaseTask* t) {
+    // Avoid add twice
+    if (t->downstreamTasks_.find(this) == t->downstreamTasks_.end()) {
+      t->downstreamTasks_.insert(this);
+      upstreamCount_++;
+    }
+  }
+
+  // Reset the task to ready-for-schedule state
+  void reset() { pendingUpstreamCount_ = upstreamCount_; }
+
+  //
+  // Abstract interfaces for task definition
+  //
+
+  // Progress the task, return whether the task is finished.
+  virtual bool progress() = 0;
+  // Check if the task is finished without any progressing.
+  virtual bool finished() const = 0;
+  // Return an unique identity for the task
+  virtual std::string id() const = 0;
+
+private:
+  int upstreamCount_ = 0;
+  std::atomic<int> pendingUpstreamCount_;
+  std::vector<BaseTask*> downstreamTasks_;
+};
+
 /*
  * An interface for a task.
  */
@@ -89,13 +155,13 @@ struct Task {
                                         !detail::tag_traits<Tag>::priority,
                                     int>::type = 0>
   Task(int tag) : metaData_{tag} {}
-  template <typename std::enable_if<!detail::tag_traits<Tag>::tag &&
-                                        detail::tag_traits<Tag>::priority,
-                                    int>::type = 0>
+  template <std::enable_if_t<!detail::tag_traits<Tag>::tag &&
+                                 detail::tag_traits<Tag>::priority,
+                             int> = 0>
   Task(double priority) : metaData_{0, priority} {}
-  template <typename std::enable_if<detail::tag_traits<Tag>::tag &&
-                                        detail::tag_traits<Tag>::priority,
-                                    int>::type = 0>
+  template <std::enable_if_t<detail::tag_traits<Tag>::tag &&
+                                 detail::tag_traits<Tag>::priority,
+                             int> = 0>
   Task(int tag, double priority) : metaData_{tag, priority} {}
   // Destroy the task
   virtual ~Task() = default;
