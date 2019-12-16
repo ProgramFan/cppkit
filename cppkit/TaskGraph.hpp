@@ -20,7 +20,34 @@
 
 namespace cppkit {
 
+namespace taskgraph {
+struct WithTag {};
+struct WithPriority {};
+struct WithTagAndPriority {};
+}  // namespace taskgraph
+
 namespace detail {
+template <typename Tag>
+struct tag_traits {
+  static const bool tag = false;
+  static const bool priority = false;
+};
+template <>
+struct tag_traits<taskgraph::WithTag> {
+  static const bool tag = true;
+  static const bool priority = false;
+};
+template <>
+struct tag_traits<taskgraph::WithPriority> {
+  static const bool tag = false;
+  static const bool priority = true;
+};
+template <>
+struct tag_traits<taskgraph::WithTagAndPriority> {
+  static const bool tag = true;
+  static const bool priority = true;
+};
+
 struct TagAndPriority {
   int tag;
   double priority;
@@ -31,49 +58,43 @@ struct Tag {
 struct Priority {
   double priority;
 };
-struct Null {};
 
-template <typename WithTag, typename WithPriority>
+template <typename Tag>
 struct MetaDataSelector {
   using type = void;
 };
 template <>
-struct MetaDataSelector<std::false_type, std::false_type> {
-  using type = void;
-};
-template <>
-struct MetaDataSelector<std::true_type, std::false_type> {
+struct MetaDataSelector<taskgraph::WithTag> {
   using type = Tag;
 };
 template <>
-struct MetaDataSelector<std::false_type, std::true_type> {
+struct MetaDataSelector<taskgraph::WithPriority> {
   using type = Priority;
 };
 template <>
-struct MetaDataSelector<std::true_type, std::true_type> {
+struct MetaDataSelector<taskgraph::WithTagAndPriority> {
   using type = TagAndPriority;
 };
 }  // namespace detail
-namespace tag {
-struct Simple {};
-struct WithTag {};
-struct WithPriority {};
-struct WithTagAndPriority {};
-}  // namespace tag
+
 /*
  * An interface for a task.
  */
-template <typename WithTag = std::false_type,
-          typename WithPriority = std::false_type>
+template <typename Tag = void>
 struct Task {
   // Create a regular task
   Task() = default;
   // Create a task with specific tag
-  template <typename std::enable_if<WithTag::value, int>::type = 0>
+  template <typename std::enable_if<detail::tag_traits<Tag>::tag &&
+                                        !detail::tag_traits<Tag>::priority,
+                                    int>::type = 0>
   Task(int tag) : metaData_{tag} {}
-  template <typename std::enable_if<WithPriority::value, int>::type = 0>
+  template <typename std::enable_if<!detail::tag_traits<Tag>::tag &&
+                                        detail::tag_traits<Tag>::priority,
+                                    int>::type = 0>
   Task(double priority) : metaData_{0, priority} {}
-  template <typename std::enable_if<WithTag::value && WithPriority::value,
+  template <typename std::enable_if<detail::tag_traits<Tag>::tag &&
+                                        detail::tag_traits<Tag>::priority,
                                     int>::type = 0>
   Task(int tag, double priority) : metaData_{tag, priority} {}
   // Destroy the task
@@ -85,22 +106,26 @@ struct Task {
   // Query or set the task properties
 
   // Query the tag of this task
-  template <typename std::enable_if<WithTag::value, int>::type = 0>
+  template <
+      typename std::enable_if<detail::tag_traits<Tag>::tag, int>::type = 0>
   int tag() const {
     return metaData_.tag;
   }
   // Set the tag of this task
-  template <typename std::enable_if<WithTag::value, int>::type = 0>
+  template <
+      typename std::enable_if<detail::tag_traits<Tag>::tag, int>::type = 0>
   void setTag(int tag) {
     metaData_.tag = tag;
   };
   // Query the tag of this task
-  template <typename std::enable_if<WithPriority::value, int>::type = 0>
+  template <
+      typename std::enable_if<detail::tag_traits<Tag>::priority, int>::type = 0>
   double priority() const {
     return metaData_.priority;
   }
   // Set the tag of this task
-  template <typename std::enable_if<WithPriority::value, int>::type = 0>
+  template <
+      typename std::enable_if<detail::tag_traits<Tag>::priority, int>::type = 0>
   void setPriority(double priority) {
     metaData_.priority = priority;
   };
@@ -147,7 +172,7 @@ private:
   int upstreamCount_ = 0;
   std::atomic<int> pendingUpstreamCount_;
   std::unordered_set<Task*> downstreamTasks_;
-  detail::MetaDataSelector<WithTag, WithPriority> metaData_;
+  detail::MetaDataSelector<Tag> metaData_;
 };
 
 /*
@@ -158,19 +183,30 @@ private:
  * The TaskGraph is merely used for facilitating task scheduling. The users
  * shall build their own scheduler by making use of the
  */
-template <typename WithTag = std::false_type,
-          typename WithPriority = std::false_type>
+template <typename Tag = void>
 struct TaskGraph {
   TaskGraph() = default;
 
   // Return how many tags are in the task graph
-  int tagCount() const { return tasksByTag_.size(); }
+  template <
+      typename std::enable_if<detail::tag_traits<Tag>::tag, int>::type = 0>
+  int tagCount() const {
+    return tasksByTag_.size();
+  }
   // Return how many tasks are in the task graph.
   size_t taskCount() const { return taskCount_; }
 
   // Add a task into the task graph.
-  void addTask(Task<WithTag, WithPriority>* t) {
+  template <
+      typename std::enable_if<detail::tag_traits<Tag>::tag, int>::type = 0>
+  void addTask(Task<Tag>* t) {
     tasksByTag_[t->tag()].push_back(t);
+    taskCount_++;
+  }
+  template <
+      typename std::enable_if<!detail::tag_traits<Tag>::tag, int>::type = 0>
+  void addTask(Task<Tag>* t) {
+    tasksByTag_[0].push_back(t);
     taskCount_++;
   }
   // Clear all tasks
@@ -188,16 +224,6 @@ struct TaskGraph {
       for (auto& t : kv.second) op(t);
     }
   }
-  // Loop over tasks with specific tag
-  //
-  // Op is a functor like `void(Task* t)`
-  template <typename Op>
-  void foreachByTag(int tag, Op op) const {
-    if (tasksByTag_.find(tag) == tasksByTag_.end()) return;
-    for (auto t : tasksByTag_.at(tag)) {
-      op(t);
-    }
-  }
   // Loop over tasks satisfing specific predicates
   //
   // Op is a functor like `void(Task* t)`
@@ -208,6 +234,17 @@ struct TaskGraph {
       for (auto t : kv.second) {
         if (pred(t)) op(t);
       }
+    }
+  }
+  // Loop over tasks with specific tag
+  //
+  // Op is a functor like `void(Task* t)`
+  template <typename Op, typename std::enable_if<detail::tag_traits<Tag>::tag,
+                                                 int>::type = 0>
+  void foreachByTag(int tag, Op op) const {
+    if (tasksByTag_.find(tag) == tasksByTag_.end()) return;
+    for (auto t : tasksByTag_.at(tag)) {
+      op(t);
     }
   }
   // Loop over tasks with specific upstream count
@@ -228,8 +265,8 @@ struct TaskGraph {
   // upstream count and the graph is a DAG.
   //
   std::pair<bool, std::string> validate(bool diagnostics = false) const {
-    std::unordered_map<Task<WithTag, WithPriority>*, int> counts;
-    foreach ([&counts](Task<WithTag, WithPriority>* t) {
+    std::unordered_map<Task<Tag>*, int> counts;
+    foreach ([&counts](Task<Tag>* t) {
       if (counts.find(t) == counts.end()) counts[t] = 0;
       for (auto d : t->downstreamTasks()) {
         if (counts.find(d) == counts.end()) counts[d] = 0;
@@ -239,26 +276,24 @@ struct TaskGraph {
       ;
     bool isValid = true;
     std::ostringstream os;
-    foreach (
-        [&counts, &isValid, &os, &diagnostics](Task<WithTag, WithPriority>* t) {
-          if (t->upstreamCount() != counts.at(t)) {
-            isValid = false;
-            if (diagnostics) {
-              os << "Invalid upstream count for '" << t->id() << "@" << t
-                 << "': claimed " << t->upstreamCount() << ", real "
-                 << counts.at(t);
-            }
-          }
-        })
+    foreach ([&counts, &isValid, &os, &diagnostics](Task<Tag>* t) {
+      if (t->upstreamCount() != counts.at(t)) {
+        isValid = false;
+        if (diagnostics) {
+          os << "Invalid upstream count for '" << t->id() << "@" << t
+             << "': claimed " << t->upstreamCount() << ", real "
+             << counts.at(t);
+        }
+      }
+    })
       ;
     if (!isValid) return {false, os.str()};
     //
     // Check if the graph is a DAG.
     //
     // initialize roots (tasks with no upstreams)
-    std::queue<Task<WithTag, WithPriority>*> ready;
-    foreachByUpstreamCount(
-        0, [&ready](Task<WithTag, WithPriority>* t) { ready.push(t); });
+    std::queue<Task<Tag>*> ready;
+    foreachByUpstreamCount(0, [&ready](Task<Tag>* t) { ready.push(t); });
     if (ready.empty()) {
       if (diagnostics) {
         os << "The task graph is cyclic: there exist no source tasks.";
@@ -268,10 +303,9 @@ struct TaskGraph {
     // Count tasks without dependent tasks. There shall be at least one such
     // task in a DAG.
     int sinkCount = 0;
-    foreachIf([&sinkCount](Task<WithTag, WithPriority>* t) { sinkCount++; },
-              [](Task<WithTag, WithPriority>* t) -> bool {
-                return t->downstreamTasks().empty();
-              });
+    foreachIf(
+        [&sinkCount](Task<Tag>* t) { sinkCount++; },
+        [](Task<Tag>* t) -> bool { return t->downstreamTasks().empty(); });
     if (sinkCount == 0) {
       if (diagnostics) {
         os << "The task graph is cyclic: there exist no sink tasks.";
@@ -324,7 +358,7 @@ struct TaskGraph {
 
   // Reset tasks for scheduling
   void reset() {
-    foreach ([](Task<WithTag, WithPriority>* t) { t->reset(); })
+    foreach ([](Task<Tag>* t) { t->reset(); })
       ;
   }
 
@@ -334,7 +368,7 @@ struct TaskGraph {
     if (tasksByTag_.empty()) return "digraph {}";
     std::ostringstream os;
     os << "digraph {" << std::endl;
-    foreach ([&os](Task<WithTag, WithPriority>* t) {
+    foreach ([&os](Task<Tag>* t) {
       if (t->upstreamCount() == 0 && t->downstreamTasks().empty()) {
         os << "  \"" << t->id() << "\";" << std::endl;
       } else {
@@ -351,8 +385,7 @@ struct TaskGraph {
 
 private:
   size_t taskCount_ = 0;
-  std::unordered_map<int, std::vector<Task<WithTag, WithPriority>*>>
-      tasksByTag_;
+  std::unordered_map<int, std::vector<Task<Tag>*>> tasksByTag_;
 };
 
 }  // namespace cppkit

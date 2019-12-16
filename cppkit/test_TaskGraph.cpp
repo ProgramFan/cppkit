@@ -2,9 +2,9 @@
 
 #include "TaskGraph.hpp"
 
-class SimpleTask : public cppkit::Task<> {
+class SimpleTask : public cppkit::Task<cppkit::taskgraph::WithTag> {
 public:
-  SimpleTask(int id) : cppkit::Task<>(), id_(id) {}
+  SimpleTask(int id) : cppkit::Task<cppkit::taskgraph::WithTag>(), id_(id) {}
 
   bool progress() override { return true; }
   bool finished() const override { return true; }
@@ -25,7 +25,7 @@ void doTest() {
   tasks[2]->addDownstreamTask(tasks[3].get());
   tasks[3]->addDownstreamTask(tasks[4].get());
   tasks[4]->addDownstreamTask(tasks[2].get());
-  cppkit::TaskGraph<> tg;
+  cppkit::TaskGraph<cppkit::taskgraph::WithTag> tg;
   for (auto& t : tasks) tg.addTask(t.get());
   auto result = tg.validate(true);
   if (!result.first) std::cerr << result.second << std::endl;
