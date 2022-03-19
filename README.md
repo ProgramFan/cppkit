@@ -10,6 +10,10 @@ At the moment, it includes these components:
 3. fmt for easy string formatting
 4. pegtl for PEG parser generator
 
+To add a library, we shall make sure it just requires c++11. It it is a c
+library, make sure it works under a c++ compiler, aka., it guards correctly with
+`extern "C"`.
+
 ## Usage
 
 CppKit can be used as a standalone library or a cmake subject. When used as a
@@ -50,4 +54,38 @@ shall be built into an object library `fooObjs`. The object library foo shall
 be appended into the `cppkit_OBJECTS` list as `$<TARGET_OBJECTS:fooObjs>`, and
 the variable shall be set to the parent scope. The interfaces shall be added
 to the `foo` interface library and set the build and install time path
-accordingly. See the `asrt` library for an detailed example.
+accordingly. See the `assert` library for an detailed example.
+
+## Available Components
+
+### fmt
+
+The famous fmtlib which implements c++20 `std::format`. This library is
+cross-platform and compatible with any c++11-compliant compilers, such as gcc
+4.8 and visual studio 2015.
+
+### fmt.v4
+
+This is a c++98 compatible version of the fmt library, with less features. But
+if one sticks to the core features, it is useful. This is recommended for
+projects under gcc 4.4 and visual studio 2010.
+
+### spdlog
+
+A fast and header-only logger.
+
+### googletest
+
+The famous c++ unittest framework.
+
+### doctest
+
+The famous lightweight c++ unittest framework.
+
+### cppkit
+
+A home-grown library for easy c++ programmng.
+
+### hashing
+
+A collection of high quality hashing functions from their official sites.
