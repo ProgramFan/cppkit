@@ -28,43 +28,7 @@ enum blake3_flags {
 #define INLINE static inline __attribute__((always_inline))
 #endif
 
-#if defined(__x86_64__) || defined(_M_X64) 
-#define IS_X86
-#define IS_X86_64
-#endif
-
-#if defined(__i386__) || defined(_M_IX86)
-#define IS_X86
-#define IS_X86_32
-#endif
-
-#if defined(__aarch64__) || defined(_M_ARM64)
-#define IS_AARCH64
-#endif
-
-#if defined(IS_X86)
-#if defined(_MSC_VER)
-#include <intrin.h>
-#endif
-#include <immintrin.h>
-#endif
-
-#if !defined(BLAKE3_USE_NEON) 
-  // If BLAKE3_USE_NEON not manually set, autodetect based on AArch64ness
-  #if defined(IS_AARCH64)
-    #define BLAKE3_USE_NEON 1
-  #else
-    #define BLAKE3_USE_NEON 0
-  #endif
-#endif
-
-#if defined(IS_X86)
-#define MAX_SIMD_DEGREE 16
-#elif BLAKE3_USE_NEON == 1
-#define MAX_SIMD_DEGREE 4
-#else
 #define MAX_SIMD_DEGREE 1
-#endif
 
 // There are some places where we want a static size that's equal to the
 // MAX_SIMD_DEGREE, but also at least 2.
@@ -87,23 +51,6 @@ static const uint8_t MSG_SCHEDULE[7][16] = {
 /* Find index of the highest set bit */
 /* x is assumed to be nonzero.       */
 static unsigned int highest_one(uint64_t x) {
-#if defined(__GNUC__) || defined(__clang__)
-  return 63 ^ __builtin_clzll(x);
-#elif defined(_MSC_VER) && defined(IS_X86_64)
-  unsigned long index;
-  _BitScanReverse64(&index, x);
-  return index;
-#elif defined(_MSC_VER) && defined(IS_X86_32)
-  if(x >> 32) {
-    unsigned long index;
-    _BitScanReverse(&index, (unsigned long)(x >> 32));
-    return 32 + index;
-  } else {
-    unsigned long index;
-    _BitScanReverse(&index, (unsigned long)x);
-    return index;
-  }
-#else
   unsigned int c = 0;
   if(x & 0xffffffff00000000ULL) { x >>= 32; c += 32; }
   if(x & 0x00000000ffff0000ULL) { x >>= 16; c += 16; }
@@ -112,21 +59,16 @@ static unsigned int highest_one(uint64_t x) {
   if(x & 0x000000000000000cULL) { x >>=  2; c +=  2; }
   if(x & 0x0000000000000002ULL) {           c +=  1; }
   return c;
-#endif
 }
 
 // Count the number of 1 bits.
 INLINE unsigned int popcnt(uint64_t x) {
-#if defined(__GNUC__) || defined(__clang__)
-  return __builtin_popcountll(x);
-#else
   unsigned int count = 0;
   while (x != 0) {
     count += 1;
     x &= x - 1;
   }
   return count;
-#endif
 }
 
 // Largest power of two less than or equal to x. As a special case, returns 1
@@ -212,71 +154,5 @@ void blake3_hash_many_portable(const uint8_t *const *inputs, size_t num_inputs,
                                uint64_t counter, bool increment_counter,
                                uint8_t flags, uint8_t flags_start,
                                uint8_t flags_end, uint8_t *out);
-
-#if defined(IS_X86)
-#if !defined(BLAKE3_NO_SSE2)
-void blake3_compress_in_place_sse2(uint32_t cv[8],
-                                   const uint8_t block[BLAKE3_BLOCK_LEN],
-                                   uint8_t block_len, uint64_t counter,
-                                   uint8_t flags);
-void blake3_compress_xof_sse2(const uint32_t cv[8],
-                              const uint8_t block[BLAKE3_BLOCK_LEN],
-                              uint8_t block_len, uint64_t counter,
-                              uint8_t flags, uint8_t out[64]);
-void blake3_hash_many_sse2(const uint8_t *const *inputs, size_t num_inputs,
-                           size_t blocks, const uint32_t key[8],
-                           uint64_t counter, bool increment_counter,
-                           uint8_t flags, uint8_t flags_start,
-                           uint8_t flags_end, uint8_t *out);
-#endif
-#if !defined(BLAKE3_NO_SSE41)
-void blake3_compress_in_place_sse41(uint32_t cv[8],
-                                    const uint8_t block[BLAKE3_BLOCK_LEN],
-                                    uint8_t block_len, uint64_t counter,
-                                    uint8_t flags);
-void blake3_compress_xof_sse41(const uint32_t cv[8],
-                               const uint8_t block[BLAKE3_BLOCK_LEN],
-                               uint8_t block_len, uint64_t counter,
-                               uint8_t flags, uint8_t out[64]);
-void blake3_hash_many_sse41(const uint8_t *const *inputs, size_t num_inputs,
-                            size_t blocks, const uint32_t key[8],
-                            uint64_t counter, bool increment_counter,
-                            uint8_t flags, uint8_t flags_start,
-                            uint8_t flags_end, uint8_t *out);
-#endif
-#if !defined(BLAKE3_NO_AVX2)
-void blake3_hash_many_avx2(const uint8_t *const *inputs, size_t num_inputs,
-                           size_t blocks, const uint32_t key[8],
-                           uint64_t counter, bool increment_counter,
-                           uint8_t flags, uint8_t flags_start,
-                           uint8_t flags_end, uint8_t *out);
-#endif
-#if !defined(BLAKE3_NO_AVX512)
-void blake3_compress_in_place_avx512(uint32_t cv[8],
-                                     const uint8_t block[BLAKE3_BLOCK_LEN],
-                                     uint8_t block_len, uint64_t counter,
-                                     uint8_t flags);
-
-void blake3_compress_xof_avx512(const uint32_t cv[8],
-                                const uint8_t block[BLAKE3_BLOCK_LEN],
-                                uint8_t block_len, uint64_t counter,
-                                uint8_t flags, uint8_t out[64]);
-
-void blake3_hash_many_avx512(const uint8_t *const *inputs, size_t num_inputs,
-                             size_t blocks, const uint32_t key[8],
-                             uint64_t counter, bool increment_counter,
-                             uint8_t flags, uint8_t flags_start,
-                             uint8_t flags_end, uint8_t *out);
-#endif
-#endif
-
-#if BLAKE3_USE_NEON == 1
-void blake3_hash_many_neon(const uint8_t *const *inputs, size_t num_inputs,
-                           size_t blocks, const uint32_t key[8],
-                           uint64_t counter, bool increment_counter,
-                           uint8_t flags, uint8_t flags_start,
-                           uint8_t flags_end, uint8_t *out);
-#endif
-
 
 #endif /* BLAKE3_IMPL_H */
