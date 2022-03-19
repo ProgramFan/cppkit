@@ -1,4 +1,4 @@
-#include "assert.hpp"
+#include <cppkit/assert.hpp>
 
 #if CPPKIT_ASSERT_ENABLE == 1 && CPPKIT_ASSERT_ENABLE_CUSTOM_ERROR_HANDLER == 1
 
