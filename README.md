@@ -2,67 +2,48 @@
 
 ## Features
 
-CppKit is a collection of library components for efficient C++ programming.
-At the moment, it includes these components:
-
-1. assert.hpp for contract programming
-2. doctest for TDD
-3. fmt for easy string formatting
-4. pegtl for PEG parser generator
-
-To add a library, we shall make sure it just requires c++11. It it is a c
-library, make sure it works under a c++ compiler, aka., it guards correctly with
-`extern "C"`.
+CppKit is a collection of libraries for efficient C++ programming under C++11.
+The gathered library is at best header-only, and only requires a C++11 compiler
+or C99 compiler. Some big libraries such as googletest and abseil are also
+included, and they are just the same as their origin.
 
 ## Usage
 
-CppKit can be used as a standalone library or a cmake subject. When used as a
-standalone library, cppkit shall be compiled before usage. Use cmake to
-compile and install cppkit to `PREFIX`, then add `$PREFIX/include` and
-`$PREFIX/lib` to include and library path, and link with `-lcppkit`:
+CppKit assumes it is embedded into another project, and allows the user to
+choose whatever they need. To embed CppKit using cmake, one just need to put
+this directory under a cmake-accessable directory and add
+`add_subdirectory(cppkit)` to the parent CMakeLists.txt.
 
-```bash
-mkdir build && cd build
-cmake -DCMAKE_INSTALL_PREFIX=$PREFIX ..
-make && make install
+CppKit also assumes all its objects are embedded directly into the parent
+project's binaries and libraries. Thus, it does not produce any extra libraries. Instead, the parent project shall embed cppkit's objects into its binaries and libraries.To do that, one add the following lines to the CMakeLists.txt:
+
+```cmake
+add_library(my-lib mysrc.c ${cppkit_OBJECTS})
+add_executable(my-exe mysrc.c ${cppkit_OBJECTS})
+target_link_libraries(my-lib PRIVATE cppkit)
+target_link_libraries(my-exe PRIVATE cppkit)
 ```
-
-When used as a cmake subproject, just put the source tree into `cppkit`
-directory, add the `cppkit` directory to project, and use
-`target_link_libraries(foo cppkit)` to refer to cppkit. When installing, the
-cppkit artifacts will be installed.
-
-For advanced users, each components can be extracted and add to the project's
-source tree.
-
-The components retain their normal usage, refer to their documents for
-detailed information.
 
 ## Development
 
-When adding a library, follow these steps:
+Follow these steps to add a library:
 
-1. Extract only the sources and headers of upstream project `foo`
-2. Put the sources and headers in a separate directory `foo` and add `foo` in
-   project's CMakeLists.txt
+1. Extract the sources and headers of upstream project `foo` into a directory
+   `foo`.
+2. Create a CMakeLists.txt in `foo` to build the library's source into an object
+   library `foo_OBJECTS`. Then add a `foo` interface library for the headers.
+   Finally, append `foo_OBJECTS` into the `cppkit_OBJECTS` list as
+   `${TARGET_OBJECTS:foo_OBJECTS}`.
 3. Create a README.md in `foo` to document how to upgrade the library
-4. Create a CMakeLists.txt in `foo` to build the sources and install the
-   headers.
 
-The headers shall be installed into the original directory layout. The sources
-shall be built into an object library `fooObjs`. The object library foo shall
-be appended into the `cppkit_OBJECTS` list as `$<TARGET_OBJECTS:fooObjs>`, and
-the variable shall be set to the parent scope. The interfaces shall be added
-to the `foo` interface library and set the build and install time path
-accordingly. See the `assert` library for an detailed example.
 
-## Available Components
+## Available Library Components
 
 ### fmt
 
 The famous fmtlib which implements c++20 `std::format`. This library is
 cross-platform and compatible with any c++11-compliant compilers, such as gcc
-4.8 and visual studio 2015.
+4.8 and visual studio 2015. It is configured as header-only.
 
 ### fmt.v4
 
@@ -72,20 +53,31 @@ projects under gcc 4.4 and visual studio 2010.
 
 ### spdlog
 
-A fast and header-only logger.
+A fast C++11 logger with fmt as its message formatting interface.and header-only logger.
 
 ### googletest
 
-The famous c++ unittest framework.
+The famous c++ unittest framework from google. This does not require C++11.
 
 ### doctest
 
-The famous lightweight c++ unittest framework.
+The famous lightweight c++ unittest framework. The C++11 compatible version is
+bundled.
 
 ### cppkit
 
-A home-grown library for easy c++ programmng.
+A home-grown library for easy c++ programmng. Currently only `assert.hpp` for
+straightforward contract programming.
 
 ### hashing
 
-A collection of high quality hashing functions from their official sites.
+A collection of high quality hashing functions. Currently there are md5, sha256,
+blake3 and xxhash.
+
+### json
+
+A header-only json parser and serializer.
+
+### pegtl
+
+A template library for PEG (parsing expression grammar).
