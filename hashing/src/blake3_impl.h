@@ -7,7 +7,7 @@
 #include <stdint.h>
 #include <string.h>
 
-#include "blake3.h"
+#include "hashing/blake3.h"
 
 // internal flags
 enum blake3_flags {

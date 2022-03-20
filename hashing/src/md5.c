@@ -6,7 +6,7 @@
 
 #include <string.h>
 
-#include "md5.h"
+#include "hashing/md5.h"
 
 #define GET_UINT32(n,b,i)                       \
 {                                               \

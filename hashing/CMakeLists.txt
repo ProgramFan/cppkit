@@ -2,14 +2,19 @@
 # Targets for the hashing library
 #
 
-add_library(hashing::md5 OBJECT md5.h md5.c)
-target_include_directories(hashing::md5 PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+add_library(
+  hashing_OBJECTS OBJECT
+  include/hashing/md5.h
+  include/hashing/sha256.h
+  include/hashing/blake3.h
+  include/hashing/xxhash.h
+  src/md5.c src/sha256.c sha/xxhash.c
+  src/blake3.c src/blake3_dispatch.c src/blake3_portable.c
+)
 
-add_library(hashing::sha256 OBJECT sha256.h sha256.c)
-target_include_directories(hashing::sha256 PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-
-add_library(hashing::blake3 OBJECT blake3.h blake3.c blake3_impl.h blake3_dispatch.c blake3_portable.c)
-target_include_directories(hashing::blake3 PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-
-add_library(hashing::xxhash OBJECT xxhash.h xxhash.c)
-target_include_directories(hashing::xxhash PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+add_library(hashing INTERFACE)
+target_include_directories(
+  hashing INTERFACE
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+)
